@@ -25,6 +25,8 @@ local CheatConfig = {
     Aimbot_FOV = 100,
     Aimbot_Smoothness = 1,
     Aimbot_TargetPart = "Head",
+    Aimbot_FOV_Color = Color3.fromRGB(255, 255, 255),
+    Aimbot_FOV_Rainbow = false,
     
     WalkSpeed = 16
 }
@@ -134,11 +136,11 @@ Players.PlayerRemoving:Connect(function(player)
     end
 end)
 
--- Função para achar o alvo mais próximo do mouse dentro do FOV
-local function GetClosestPlayerToMouse()
+-- Função para achar o alvo mais próximo do centro da tela dentro do FOV
+local function GetClosestPlayerToCenter()
     local closestPlayer = nil
     local shortestDistance = math.huge
-    local mousePos = UserInputService:GetMouseLocation()
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
@@ -146,7 +148,7 @@ local function GetClosestPlayerToMouse()
             if targetPart then
                 local pos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                 if onScreen then
-                    local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                    local dist = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
                     if dist < CheatConfig.Aimbot_FOV and dist < shortestDistance then
                         closestPlayer = player
                         shortestDistance = dist
@@ -159,17 +161,26 @@ local function GetClosestPlayerToMouse()
 end
 
 -- Main Loop - GPU
-RunService.RenderStepped:Connect(function()
-    -- Atualiza e desenha o FOV Circle no mouse
+local hue = 0
+RunService.RenderStepped:Connect(function(deltaTime)
+    -- Lógica do Rainbow
+    if CheatConfig.Aimbot_FOV_Rainbow then
+        hue = hue + (deltaTime * 0.5)
+        if hue >= 1 then hue = 0 end
+        CheatConfig.Aimbot_FOV_Color = Color3.fromHSV(hue, 1, 1)
+    end
+
+    -- Atualiza e desenha o FOV Circle no centro da tela
     if CheatConfig.Aimbot_Enabled then
-        local mousePos = UserInputService:GetMouseLocation()
-        FOVCircle.Position = mousePos
+        local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        FOVCircle.Position = screenCenter
         FOVCircle.Radius = CheatConfig.Aimbot_FOV
+        FOVCircle.Color = CheatConfig.Aimbot_FOV_Color
         FOVCircle.Visible = true
         
         -- Lógica do Aimbot (Ativando no botão direito do mouse - InputType = MouseButton2)
         if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-            local target = GetClosestPlayerToMouse()
+            local target = GetClosestPlayerToCenter()
             if target and target.Character and target.Character:FindFirstChild(CheatConfig.Aimbot_TargetPart) then
                 local targetPos = target.Character[CheatConfig.Aimbot_TargetPart].Position
                 local currentCameraPos = Camera.CFrame.Position
@@ -512,6 +523,27 @@ TabAimbot:CreateSlider({
    Callback = function(Value)
         CheatConfig.Aimbot_Smoothness = Value
    end,
+})
+
+TabAimbot:CreateSection("Visual do FOV")
+TabAimbot:CreateToggle({
+   Name = "Cor Rainbow (RGB)",
+   CurrentValue = false,
+   Flag = "Aimbot_RainbowFOV",
+   Callback = function(Value)
+        CheatConfig.Aimbot_FOV_Rainbow = Value
+   end,
+})
+
+TabAimbot:CreateColorPicker({
+    Name = "Cor do Círculo",
+    Color = Color3.fromRGB(255, 255, 255),
+    Flag = "Aimbot_FOVColor",
+    Callback = function(Value)
+        if not CheatConfig.Aimbot_FOV_Rainbow then
+            CheatConfig.Aimbot_FOV_Color = Value
+        end
+    end
 })
 
 -- Aba Jogador
