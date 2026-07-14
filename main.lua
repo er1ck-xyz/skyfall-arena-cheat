@@ -20,6 +20,11 @@ local CheatConfig = {
     Color_Text = Color3.fromRGB(255, 255, 255),
     Color_Snapline = Color3.fromRGB(255, 0, 0),
     Color_Glow = Color3.fromRGB(255, 0, 0),
+    -- Aimbot
+    Aimbot_Enabled = false,
+    Aimbot_FOV = 100,
+    Aimbot_Smoothness = 1,
+    Aimbot_TargetPart = "Head",
     
     WalkSpeed = 16
 }
@@ -28,6 +33,21 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Camera = Workspace.CurrentCamera
+
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- ==========================================
+-- 0. FOV CIRCLE (DRAWING API)
+-- ==========================================
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+FOVCircle.Thickness = 1
+FOVCircle.Transparency = 1
+FOVCircle.NumSides = 64
+FOVCircle.Radius = CheatConfig.Aimbot_FOV
+FOVCircle.Filled = false
 
 -- ==========================================
 -- 1. SISTEMA DE ESP (DRAWING API & HIGHLIGHTS)
@@ -114,8 +134,54 @@ Players.PlayerRemoving:Connect(function(player)
     end
 end)
 
+-- Função para achar o alvo mais próximo do mouse dentro do FOV
+local function GetClosestPlayerToMouse()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+    local mousePos = UserInputService:GetMouseLocation()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local targetPart = player.Character:FindFirstChild(CheatConfig.Aimbot_TargetPart)
+            if targetPart then
+                local pos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen then
+                    local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                    if dist < CheatConfig.Aimbot_FOV and dist < shortestDistance then
+                        closestPlayer = player
+                        shortestDistance = dist
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
 -- Main Loop - GPU
 RunService.RenderStepped:Connect(function()
+    -- Atualiza e desenha o FOV Circle no mouse
+    if CheatConfig.Aimbot_Enabled then
+        local mousePos = UserInputService:GetMouseLocation()
+        FOVCircle.Position = mousePos
+        FOVCircle.Radius = CheatConfig.Aimbot_FOV
+        FOVCircle.Visible = true
+        
+        -- Lógica do Aimbot (Ativando no botão direito do mouse - InputType = MouseButton2)
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+            local target = GetClosestPlayerToMouse()
+            if target and target.Character and target.Character:FindFirstChild(CheatConfig.Aimbot_TargetPart) then
+                local targetPos = target.Character[CheatConfig.Aimbot_TargetPart].Position
+                local currentCameraPos = Camera.CFrame.Position
+                -- Suavização (Smoothness)
+                local newCFrame = CFrame.new(currentCameraPos, targetPos)
+                Camera.CFrame = Camera.CFrame:Lerp(newCFrame, CheatConfig.Aimbot_Smoothness)
+            end
+        end
+    else
+        FOVCircle.Visible = false
+    end
+
     for player, esp in pairs(ESP_Instances) do
         -- Master Switch: Desliga tudo se o Toggle Global tiver Off
         if not CheatConfig.ESP_Enabled then
@@ -399,6 +465,53 @@ TabVisuals:CreateColorPicker({
     Callback = function(Value)
         CheatConfig.Color_Glow = Value
     end
+})
+
+-- Aba Aimbot
+local TabAimbot = Window:CreateTab("Aimbot", 4483362458)
+
+TabAimbot:CreateToggle({
+   Name = "Ativar Aimbot",
+   CurrentValue = false,
+   Flag = "Aimbot_Toggle",
+   Callback = function(Value)
+        CheatConfig.Aimbot_Enabled = Value
+   end,
+})
+
+TabAimbot:CreateDropdown({
+    Name = "Parte do Corpo",
+    Options = {"Head", "HumanoidRootPart", "Torso"},
+    CurrentOption = {"Head"},
+    MultipleOptions = false,
+    Flag = "Aimbot_Part",
+    Callback = function(Options)
+        CheatConfig.Aimbot_TargetPart = Options[1]
+    end,
+})
+
+TabAimbot:CreateSlider({
+   Name = "Tamanho do FOV",
+   Range = {10, 500},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 100,
+   Flag = "Aimbot_FOVSlider",
+   Callback = function(Value)
+        CheatConfig.Aimbot_FOV = Value
+   end,
+})
+
+TabAimbot:CreateSlider({
+   Name = "Suavização (Smoothness)",
+   Range = {0.1, 1},
+   Increment = 0.1,
+   Suffix = "Speed",
+   CurrentValue = 1,
+   Flag = "Aimbot_SmoothSlider",
+   Callback = function(Value)
+        CheatConfig.Aimbot_Smoothness = Value
+   end,
 })
 
 -- Aba Jogador
