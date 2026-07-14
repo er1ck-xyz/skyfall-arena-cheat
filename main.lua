@@ -27,6 +27,11 @@ local CheatConfig = {
     Aimbot_TargetPart = "Head",
     Aimbot_FOV_Color = Color3.fromRGB(255, 255, 255),
     Aimbot_FOV_Rainbow = false,
+
+    -- Exploits
+    ThirdPerson_Enabled = false,
+    ThirdPerson_Mode = "Toggle", -- "Toggle" ou "Hold"
+    ThirdPerson_IsActive = false,
     
     WalkSpeed = 16
 }
@@ -163,6 +168,16 @@ end
 -- Main Loop - GPU
 local hue = 0
 RunService.RenderStepped:Connect(function(deltaTime)
+    -- Força a câmera pra terceira pessoa todo frame se tiver ativo
+    if CheatConfig.ThirdPerson_Enabled and CheatConfig.ThirdPerson_IsActive then
+        Players.LocalPlayer.CameraMaxZoomDistance = 128
+        Players.LocalPlayer.CameraMinZoomDistance = 10
+        -- Empurra a câmera pra trás se o jogo prender no 0.5 (primeira pessoa)
+        if (Camera.Focus.Position - Camera.CFrame.Position).Magnitude < 1 then
+            Camera.CFrame = Camera.CFrame * CFrame.new(0, 0, 10)
+        end
+    end
+
     -- Lógica do Rainbow
     if CheatConfig.Aimbot_FOV_Rainbow then
         hue = hue + (deltaTime * 0.5)
@@ -329,7 +344,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
 end)
 
 -- ==========================================
--- 2. MENU GRÁFICO (RAYFIELD)
+-- 3. MENU GRÁFICO (RAYFIELD)
 -- ==========================================
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
@@ -345,8 +360,6 @@ local Window = Rayfield:CreateWindow({
    Discord = { Enabled = false },
    KeySystem = false
 })
-
--- Aba Visuals
 local TabVisuals = Window:CreateTab("Visuais", 4483362458)
 
 TabVisuals:CreateToggle({
@@ -544,6 +557,75 @@ TabAimbot:CreateColorPicker({
             CheatConfig.Aimbot_FOV_Color = Value
         end
     end
+})
+
+-- Aba Exploits
+local TabExploits = Window:CreateTab("Exploits", 4483362458)
+
+TabExploits:CreateSection("Câmera / Local")
+
+local ThirdPersonKeybind = TabExploits:CreateKeybind({
+   Name = "Forçar Terceira Pessoa",
+   CurrentKeybind = "V",
+   HoldToInteract = false,
+   Flag = "ThirdPerson_Bind", 
+   Callback = function(Keybind)
+        if CheatConfig.ThirdPerson_Enabled then
+            if CheatConfig.ThirdPerson_Mode == "Toggle" then
+                CheatConfig.ThirdPerson_IsActive = not CheatConfig.ThirdPerson_IsActive
+                if not CheatConfig.ThirdPerson_IsActive then
+                    -- Restaura o zoom pra primeira pessoa quando desativa
+                    Players.LocalPlayer.CameraMaxZoomDistance = 0.5
+                    Players.LocalPlayer.CameraMinZoomDistance = 0.5
+                end
+            end
+        end
+   end,
+})
+
+-- Lógica manual para o modo "Hold" usando o InputBegan/InputEnded nativo do Roblox
+-- pra ignorar a limitação da Rayfield
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode.Name == ThirdPersonKeybind.CurrentKeybind and CheatConfig.ThirdPerson_Enabled and CheatConfig.ThirdPerson_Mode == "Hold" then
+        CheatConfig.ThirdPerson_IsActive = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode.Name == ThirdPersonKeybind.CurrentKeybind and CheatConfig.ThirdPerson_Enabled and CheatConfig.ThirdPerson_Mode == "Hold" then
+        CheatConfig.ThirdPerson_IsActive = false
+        -- Restaura zoom
+        Players.LocalPlayer.CameraMaxZoomDistance = 0.5
+        Players.LocalPlayer.CameraMinZoomDistance = 0.5
+    end
+end)
+
+TabExploits:CreateToggle({
+   Name = "Habilitar Bypass de Câmera",
+   CurrentValue = false,
+   Flag = "ThirdPerson_Toggle",
+   Callback = function(Value)
+        CheatConfig.ThirdPerson_Enabled = Value
+        if not Value then
+            CheatConfig.ThirdPerson_IsActive = false
+            -- Restaura o padrão do jogo
+            Players.LocalPlayer.CameraMaxZoomDistance = 0.5
+            Players.LocalPlayer.CameraMinZoomDistance = 0.5
+        end
+   end,
+})
+
+TabExploits:CreateDropdown({
+    Name = "Modo de Ativação",
+    Options = {"Toggle", "Hold"},
+    CurrentOption = {"Toggle"},
+    MultipleOptions = false,
+    Flag = "ThirdPerson_ModeType",
+    Callback = function(Options)
+        CheatConfig.ThirdPerson_Mode = Options[1]
+    end,
 })
 
 -- Aba Jogador
