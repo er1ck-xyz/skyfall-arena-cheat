@@ -492,7 +492,7 @@ TabAimbot:CreateToggle({
 
 TabAimbot:CreateDropdown({
     Name = "Parte do Corpo",
-    Options = {"Head", "HumanoidRootPart", "Torso"},
+    Options = {"Head", "Neck", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Right Arm", "Left Arm", "Right Leg", "Left Leg"},
     CurrentOption = {"Head"},
     MultipleOptions = false,
     Flag = "Aimbot_Part",
