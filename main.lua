@@ -27,6 +27,9 @@ local CheatConfig = {
     Aimbot_TargetPart = "Head",
     Aimbot_FOV_Color = Color3.fromRGB(255, 255, 255),
     Aimbot_FOV_Rainbow = false,
+    Aimbot_Mode = "Hold", -- "Toggle" ou "Hold"
+    Aimbot_IsActive = false,
+    Aimbot_Key = Enum.UserInputType.MouseButton2, -- Padrão Mouse2
 
     -- Exploits
     ThirdPerson_Enabled = false,
@@ -165,6 +168,42 @@ local function GetClosestPlayerToCenter()
     return closestPlayer
 end
 
+-- Lógica do botão pra Forçar Terceira Pessoa e Aimbot Hold/Toggle
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    -- Lógica do Aimbot
+    if CheatConfig.Aimbot_Enabled and (input.UserInputType == CheatConfig.Aimbot_Key or input.KeyCode == CheatConfig.Aimbot_Key) then
+        if CheatConfig.Aimbot_Mode == "Toggle" then
+            CheatConfig.Aimbot_IsActive = not CheatConfig.Aimbot_IsActive
+        elseif CheatConfig.Aimbot_Mode == "Hold" then
+            CheatConfig.Aimbot_IsActive = true
+        end
+    end
+
+    -- Lógica da Terceira Pessoa (Modo Hold apenas)
+    if input.KeyCode.Name == ThirdPersonKeybind.CurrentKeybind and CheatConfig.ThirdPerson_Enabled and CheatConfig.ThirdPerson_Mode == "Hold" then
+        CheatConfig.ThirdPerson_IsActive = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    -- Lógica do Aimbot (Soltar o botão no modo Hold)
+    if CheatConfig.Aimbot_Enabled and CheatConfig.Aimbot_Mode == "Hold" and (input.UserInputType == CheatConfig.Aimbot_Key or input.KeyCode == CheatConfig.Aimbot_Key) then
+        CheatConfig.Aimbot_IsActive = false
+    end
+
+    -- Lógica da Terceira Pessoa (Soltar o botão no modo Hold)
+    if input.KeyCode.Name == ThirdPersonKeybind.CurrentKeybind and CheatConfig.ThirdPerson_Enabled and CheatConfig.ThirdPerson_Mode == "Hold" then
+        CheatConfig.ThirdPerson_IsActive = false
+        -- Restaura zoom
+        Players.LocalPlayer.CameraMaxZoomDistance = 0.5
+        Players.LocalPlayer.CameraMinZoomDistance = 0.5
+    end
+end)
+
 -- Main Loop - GPU
 local hue = 0
 RunService.RenderStepped:Connect(function(deltaTime)
@@ -193,8 +232,8 @@ RunService.RenderStepped:Connect(function(deltaTime)
         FOVCircle.Color = CheatConfig.Aimbot_FOV_Color
         FOVCircle.Visible = true
         
-        -- Lógica do Aimbot (Ativando no botão direito do mouse - InputType = MouseButton2)
-        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        -- Lógica do Aimbot (Baseada no estado ativo)
+        if CheatConfig.Aimbot_IsActive then
             local target = GetClosestPlayerToCenter()
             if target and target.Character and target.Character:FindFirstChild(CheatConfig.Aimbot_TargetPart) then
                 local targetPos = target.Character[CheatConfig.Aimbot_TargetPart].Position
@@ -206,6 +245,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
         end
     else
         FOVCircle.Visible = false
+        CheatConfig.Aimbot_IsActive = false -- Desativa fisicamente o aimbot se desligar o master
     end
 
     for player, esp in pairs(ESP_Instances) do
@@ -504,6 +544,43 @@ TabAimbot:CreateToggle({
 })
 
 TabAimbot:CreateDropdown({
+    Name = "Modo de Ativação",
+    Options = {"Toggle", "Hold"},
+    CurrentOption = {"Hold"},
+    MultipleOptions = false,
+    Flag = "Aimbot_ModeType",
+    Callback = function(Options)
+        CheatConfig.Aimbot_Mode = Options[1]
+        CheatConfig.Aimbot_IsActive = false -- Reseta o estado pra não travar
+    end,
+})
+
+TabAimbot:CreateKeybind({
+   Name = "Tecla do Aimbot",
+   CurrentKeybind = "RightClick",
+   HoldToInteract = false,
+   Flag = "Aimbot_Bind", 
+   Callback = function(Keybind)
+        -- A Rayfield mapeia o RightClick pro nome correto na Enum.
+        -- O input handler lá em cima já tá lidando com o fato do Aimbot_Key poder ser InputType ou KeyCode.
+        -- Mas pra simplificar, a gente salva a string e checa se é um botão de mouse ou teclado.
+        
+        -- Gambiarra pra traduzir string da Rayfield pra Enum do Roblox
+        if Keybind == "RightClick" then
+            CheatConfig.Aimbot_Key = Enum.UserInputType.MouseButton2
+        elseif Keybind == "LeftClick" then
+            CheatConfig.Aimbot_Key = Enum.UserInputType.MouseButton1
+        else
+            -- É um botão do teclado normal
+            local success, enumKey = pcall(function() return Enum.KeyCode[Keybind] end)
+            if success then
+                CheatConfig.Aimbot_Key = enumKey
+            end
+        end
+   end,
+})
+
+TabAimbot:CreateDropdown({
     Name = "Parte do Corpo",
     Options = {"Head", "Neck", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Right Arm", "Left Arm", "Right Leg", "Left Leg"},
     CurrentOption = {"Head"},
@@ -583,24 +660,8 @@ local ThirdPersonKeybind = TabExploits:CreateKeybind({
    end,
 })
 
--- Lógica manual para o modo "Hold" usando o InputBegan/InputEnded nativo do Roblox
--- pra ignorar a limitação da Rayfield
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode.Name == ThirdPersonKeybind.CurrentKeybind and CheatConfig.ThirdPerson_Enabled and CheatConfig.ThirdPerson_Mode == "Hold" then
-        CheatConfig.ThirdPerson_IsActive = true
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode.Name == ThirdPersonKeybind.CurrentKeybind and CheatConfig.ThirdPerson_Enabled and CheatConfig.ThirdPerson_Mode == "Hold" then
-        CheatConfig.ThirdPerson_IsActive = false
-        -- Restaura zoom
-        Players.LocalPlayer.CameraMaxZoomDistance = 0.5
-        Players.LocalPlayer.CameraMinZoomDistance = 0.5
-    end
-end)
+-- A Lógica de InputBegan/InputEnded pra ThirdPerson foi movida e unificada com a do Aimbot
+-- lá no topo (linha ~340) pra manter o código limpo e os hooks organizados num lugar só.
 
 TabExploits:CreateToggle({
    Name = "Habilitar Bypass de Câmera",
